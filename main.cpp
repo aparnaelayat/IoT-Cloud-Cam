@@ -11,9 +11,9 @@ int main()
 	exit(0);
 }
 
-void MotionDetect() // Capture Video of QR Code
+void MotionDetect() 
 {
-	Mat frame, ref_frame, difference, gray, channel[3];
+	Mat ref_frame, frame, difference, gray;
 	int count = 5;												// Holds assumed frame count
 
 	VideoCapture camera(0);
@@ -45,7 +45,7 @@ void MotionDetect() // Capture Video of QR Code
 		absdiff(ref_frame, gray, difference);
 		threshold(difference, difference, 25, 255, THRESH_BINARY);
 		dilate(difference, difference, Mat(), Point(-1, -1), 2);
-		imshow("Diff", difference);
+		imshow("Difference", difference);
 
 		// Difference frame will be black unless there is motion. 
 		if (countNonZero(difference))
@@ -55,18 +55,15 @@ void MotionDetect() // Capture Video of QR Code
 
 		// Reinitialise reference frame once every 5 frames
 		if (count % 5 == 0)
-		{
-			frame.copyTo(ref_frame);
-			cvtColor(ref_frame, ref_frame, COLOR_BGR2GRAY);
-			GaussianBlur(ref_frame, ref_frame, Size(5, 5), 0);
-		}
+			gray.copyTo(ref_frame);
+
 		count++;
 
 		// Stop when escape key is pressed
 		if (waitKey(1) == 27)
 			break;
 	}
-
 	camera.release();
 	destroyAllWindows();
+	exit(0);
 }
