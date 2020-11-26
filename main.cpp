@@ -1,71 +1,72 @@
 #include <opencv2/opencv.hpp>
-#include <zbar.h>
-#include <fstream> // For operating in files
-#include <stdio.h> // For strings
 
 using namespace cv;
 using namespace std;
-using namespace zbar;
 
-void getVideo();						//Captures Video from Cam
-void decode(Mat& im);					//Decodes info from QR Code
-int save(string var);					// Saves decoded information
+void MotionDetect(); // Function to Capture Video from Cam
 
 int main()
 {
-	getVideo();
+	MotionDetect();
 	exit(0);
 }
 
-void getVideo()								//Capture Video of QR Code
+void MotionDetect() // Capture Video of QR Code
 {
-	Mat frame;
+	Mat frame, ref_frame, difference, gray, channel[3];
+	int count = 5;												// Holds assumed frame count
+
 	VideoCapture camera(0);
-	camera.set(3, 512);						// Setswidth and height of window to 512 and 288 respectively
-	camera.set(4, 288);						//to enable faster processing of video
-	if (!camera.isOpened())					// If Camera failed to open exit the function
+
+	// Sets width and height of window to 512 and 288 respectively to enable faster processing of video
+	camera.set(3, 512);
+	camera.set(4, 288);
+
+	// If Camera failed to open exit the function
+	if (!camera.isOpened())
 	{
 		cout << "Could not capture Video.\n";
 		exit(1);
 	}
+
+	//Reads first frame
+	camera.read(ref_frame);
+	cvtColor(ref_frame, ref_frame, COLOR_BGR2GRAY);
+	GaussianBlur(ref_frame, ref_frame, Size(5, 5), 0);
+
+	//Reads subsequent frames 
 	while (camera.read(frame))
 	{
-		imshow("op", frame);			//Display Video
-		decode(frame);	
-		if (waitKey(1) == 27)			// Stop when escape key is pressed
+		imshow("Original Video", frame);
+
+		//Detects motion by comparing current frame with reference frame and store result in difference
+		cvtColor(frame, gray, COLOR_BGR2GRAY);
+		GaussianBlur(gray, gray, Size(5, 5), 0);
+		absdiff(ref_frame, gray, difference);
+		threshold(difference, difference, 25, 255, THRESH_BINARY);
+		dilate(difference, difference, Mat(), Point(-1, -1), 2);
+		imshow("Diff", difference);
+
+		// Difference frame will be black unless there is motion. 
+		if (countNonZero(difference))
+		{
+			cout << "Motion Detected\n";
+		}
+
+		// Reinitialise reference frame once every 5 frames
+		if (count % 5 == 0)
+		{
+			frame.copyTo(ref_frame);
+			cvtColor(ref_frame, ref_frame, COLOR_BGR2GRAY);
+			GaussianBlur(ref_frame, ref_frame, Size(5, 5), 0);
+		}
+		count++;
+
+		// Stop when escape key is pressed
+		if (waitKey(1) == 27)
 			break;
 	}
-	camera.release();					//Release camera resorce
+
+	camera.release();
 	destroyAllWindows();
-}
-
-void decode(Mat& im)
-{
-	ImageScanner scanner;				//Create zbar scanner
-	string var;							// Stores data
-	Mat imGray;							// Stores GrayScale image
-
-	scanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 0);			//Disable all decoders
-	scanner.set_config(ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);		//Enable QR decoder
-	
-	cvtColor(im, imGray,COLOR_BGR2GRAY);						// Convert image to grayscale
-	Image image(im.cols, im.rows, "Y800", (uchar*)imGray.data, im.cols *im.rows); // Wrap image data in a zbar image
-	
-	int n = scanner.scan(image);								// Scan the image for QRCodes
-	
-	for (Image::SymbolIterator symbol = image.symbol_begin(); symbol != image.symbol_end(); ++symbol)
-	{
-		var = symbol->get_data();
-		cout << endl << "Data : " << var << endl <<endl; // Prints data
-		save(var);
-	}
-}
-
-int save(string var)
-{
-	ofstream MyFile;
-	MyFile.open("wpa_supplicant.conf", ios::out |ios::app); // Appends data to file
-	MyFile << var << endl;
-	getVideo();
-	exit(0);
 }
